@@ -7,6 +7,7 @@ import getMuiTheme from 'material-ui/styles/getMuiTheme';
 import ErrorComponent from '../../components/Error';
 import Button from '../../components/Button';
 import ScrollArea from '../../containers/ScrollArea';
+import { addUser } from '../../actions/users';
 import {
 	fontFamily,
 	primary1Color,
@@ -28,9 +29,10 @@ const muiTheme = getMuiTheme({
 
 const mapStateToProps = state => ({
 	errorMessage: state.error.message,
+	users: state.users.users,
 });
 
-@connect(mapStateToProps)
+@connect(mapStateToProps, { addUser })
 @CSSModules(styles)
 export default class General extends Component {
 	static propTypes = {
@@ -45,7 +47,7 @@ export default class General extends Component {
 			<MuiThemeProvider muiTheme={muiTheme}>
 				<div styleName="container">
 					<div styleName="buttons-container">
-						<Button>
+						<Button onClick={this.props.addUser}>
 							Добавить
 						</Button>
 						<Button>
@@ -62,6 +64,7 @@ export default class General extends Component {
 							'Время у клиента',
 							'Булевый признак 1',
 						]}
+						rows={this.props.users}
 						/>
 					<ErrorComponent message={errorMessage} />
 				</div>

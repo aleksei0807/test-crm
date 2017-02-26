@@ -62,14 +62,17 @@ export default class UserList extends Component {
 			firstRowID,
 			rowsPerPage,
 			renderingPagesCount,
+			maxRows,
 		} = this.props;
 
-		const renderRowsCount = rowsPerPage * renderingPagesCount;
+		let renderRowsCount = rowsPerPage * renderingPagesCount;
+		if (maxRows !== null) {
+			renderRowsCount = maxRows;
+		}
 
 		let { rows } = this.props;
 
 		let emptyRows = false;
-
 		if (!rows) {
 			emptyRows = true;
 			const columnsCount = headerColumns.length;

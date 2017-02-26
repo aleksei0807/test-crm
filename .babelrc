@@ -7,6 +7,7 @@
 		"transform-decorators-legacy",
 		"transform-flow-strip-types",
 		"transform-decorators",
+		"transform-async-to-generator",
 		["transform-runtime", {
 			"polyfill": false,
 			"regenerator": true
