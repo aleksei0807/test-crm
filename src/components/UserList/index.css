@@ -1,0 +1,46 @@
+.table {
+	transform: translateZ(0);
+}
+
+.header-row {
+	text-transform: uppercase;
+}
+
+.table-body {
+	& * {
+		font-weight: 600;
+		font-size: 14px;
+	}
+	& h1, h1 span {
+		font-weight: bold;
+		font-size: 16px;
+	}
+}
+
+.table-body.empty {
+	& td {
+		cursor: auto !important;
+	}
+	& td * {
+		display: none;
+	}
+}
+
+.empty {
+	border-bottom: 1px solid #e5e5e5;
+	width: 100%;
+}
+
+@media (max-width: 767px) {
+	.table-body {
+		overflow: visible;
+	}
+	.table,
+	.table-body,
+	.table-header {
+		display: block;
+		overflow: hidden !important;
+		padding: 0 !important;
+		min-width: 690px;
+	}
+}

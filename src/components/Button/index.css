@@ -1,0 +1,80 @@
+.button {
+	margin: 10px;
+	width: initial;
+	text-transform: uppercase;
+}
+
+:global .pb-container .pb-button {
+	padding: 12px 30px;
+	height: initial;
+	border: none;
+	border-radius: 10px;
+	background: $buttonColor;
+	box-shadow: 1px 1px 3px 0 rgba(0, 0, 0, 0.25);
+
+	& span {
+		color: #fff;
+		font-weight: 600;
+		font-size: 14px;
+	}
+
+}
+
+
+:global .pb-container.loading .pb-button {
+	width: 40px;
+	height: 40px;
+	border-color: $buttonColor;
+	border-radius: 50%;
+	background-color: $buttonColor;
+	color: #fff;
+}
+
+:global .pb-container.disabled .pb-button {
+	background-color: #989898;
+}
+
+:global .pb-container .pb-button svg {
+	width: 40px;
+	height: 40px;
+	color: #fff;
+}
+
+:global .pb-container.success .pb-button {
+	width: 40px;
+	height: 40px;
+}
+
+:global .pb-container.error .pb-button {
+	width: 40px;
+	height: 40px;
+}
+
+.transparentButton {
+	margin-top: 0;
+	margin-left: 15px;
+
+	&:global.pb-container .pb-button {
+		padding: 10px 15px;
+		border: 1px #3a4b5c solid;
+		background: transparent;
+		box-shadow: none;
+
+		& span {
+			color: #2c3e50;
+			font-size: 13px;
+			font-weight: 600;
+		}
+
+	}
+	&:global.pb-container.loading .pb-button {
+		border-color: #3a4b5c;
+		background-color: #2c3e50;
+		color: #fff;
+	}
+	&:global.pb-container.disabled .pb-button {
+		border: #526271;
+		background-color: transparent;
+		color: #485a6c;
+	}
+}
