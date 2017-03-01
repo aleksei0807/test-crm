@@ -10,7 +10,14 @@ import {
 	TableRow,
 	TableRowColumn,
 } from 'material-ui/Table';
+import DatePicker from 'material-ui/DatePicker';
+import timezones from 'react-timezone/src/timezones.json';
+import TimezonePicker from 'react-timezone';
+import Clock from 'react-clockwall';
+import Toggle from '../Toggle';
 import styles from './index.css';
+
+const zoneKeys = Object.keys(timezones);
 
 const headerColumnStyle = {
 	fontSize: 11,
@@ -18,9 +25,11 @@ const headerColumnStyle = {
 };
 
 const rowColumnStyle = {
-	paddingTop: 30,
-	paddingBottom: 30,
 	whiteSpace: 'initial',
+	paddingTop: null,
+	paddingBottom: null,
+	height: 100,
+	overflow: 'visible',
 };
 
 @CSSModules(styles)
@@ -36,33 +45,88 @@ export default class UserList extends Component {
 				PropTypes.element,
 			])
 		),
-		rows: PropTypes.arrayOf(
+		rows: PropTypes.oneOfType([
 			PropTypes.arrayOf(
-				PropTypes.oneOfType([
-					PropTypes.string,
-					PropTypes.element,
-				])
-			)
-		),
+				PropTypes.arrayOf(
+					PropTypes.oneOfType([
+						PropTypes.string,
+						PropTypes.element,
+					])
+				)
+			),
+			PropTypes.object,
+		]),
 		marginTop: PropTypes.number,
 		rowHeight: PropTypes.number,
 		firstRowID: PropTypes.number,
 		rowsPerPage: PropTypes.number,
 		renderingPagesCount: PropTypes.number,
+		getUsers: PropTypes.func,
 	};
+
+	componentDidMount() {
+		this.getData();
+	}
+
+	componentDidUpdate(prevProps: Object) {
+		this.getData(prevProps);
+	}
+
+	getData = (prevProps?: Object) => {
+		const {
+			firstRowID,
+			firstDataID,
+			rowsPerPage,
+			renderingPagesCount,
+			rows,
+			getUsers,
+			rowsCount,
+		} = this.props;
+
+		const isBigEnough = rows && rows.size > rowsPerPage * renderingPagesCount;
+		if (!rows
+		|| firstDataID === null
+		|| firstRowID !== firstDataID
+		|| (isBigEnough && rowsPerPage * renderingPagesCount !== rows.size)
+		|| (prevProps && prevProps.rowsCount !== rowsCount)) {
+			getUsers(firstRowID || 0, rowsPerPage * renderingPagesCount);
+		}
+	}
+
+	buildEmptyRows = (renderRowsCount: number, columnsCount: number) => {
+		const { rowHeight, selectable } = this.props;
+
+		return Array.from({ length: renderRowsCount })
+			.map((_, key) => (
+				<TableRow
+					selectable={selectable}
+					key={key}
+					className="row"
+					data-id={key}
+					style={{
+						height: rowHeight,
+					}}>
+					{
+						Array.from({ length: columnsCount })
+						.map((v, k) => <TableRowColumn key={k} style={rowColumnStyle} />)
+					}
+				</TableRow>
+			)
+		);
+	}
 
 	render() {
 		const {
 			headerColumns,
 			stylesHeaderColumns,
-			stylesRowColumns,
-			selectable,
 			marginTop,
 			rowHeight,
 			firstRowID,
+			firstDataID,
 			rowsPerPage,
 			renderingPagesCount,
 			maxRows,
+			rows,
 		} = this.props;
 
 		let renderRowsCount = rowsPerPage * renderingPagesCount;
@@ -70,17 +134,12 @@ export default class UserList extends Component {
 			renderRowsCount = maxRows;
 		}
 
-		let { rows } = this.props;
+		const isBigEnough = rows && rows.size > rowsPerPage * renderingPagesCount;
 
-		let emptyRows = false;
-		if (!rows) {
-			emptyRows = true;
-			const columnsCount = headerColumns.length;
-			if (renderRowsCount) {
-				rows = Array.from({ length: renderRowsCount })
-				.map(() => Array.from({ length: columnsCount }));
-			}
-		}
+		const emptyRows = !rows
+		|| firstDataID === null
+		|| firstRowID !== firstDataID
+		|| (isBigEnough && rowsPerPage * renderingPagesCount !== rows.size);
 
 		const tableBodyClass = classnames({
 			[styles['table-body']]: true,
@@ -103,7 +162,7 @@ export default class UserList extends Component {
 					overflowY: 'hidden',
 					minWidth: '690px',
 				}}>
-				<TableHeader styleName="table-header" displaySelectAll={false}>
+				<TableHeader styleName="table-header" displaySelectAll={false} adjustForCheckbox={false} >
 					<TableRow className={styles['header-row']}>
 						{
 							headerColumns.map((column, key) => (
@@ -121,31 +180,55 @@ export default class UserList extends Component {
 					</TableRow>
 				</TableHeader>
 				<TableBody
-					className={tableBodyClass}>
+					className={tableBodyClass}
+					displayRowCheckbox={false}>
 					{
-						rows ? rows.map((row, key) => (
+						emptyRows ? this.buildEmptyRows(renderRowsCount, headerColumns.length)
+						: rows.map((row, key) => (
 							<TableRow
-								selectable={selectable}
+								selectable={false}
 								key={key}
 								className="row"
 								data-id={key}
 								style={{
-									height: emptyRows ? rowHeight : null,
+									height: rowHeight,
 								}}>
-								{
-									row.map((column, i) => (
-										<TableRowColumn
-											key={i}
-											style={stylesRowColumns ? {
-												...rowColumnStyle,
-												...stylesRowColumns[i],
-											} || rowColumnStyle : rowColumnStyle}>
-											{column || `${firstRowID + key}` || null}
-										</TableRowColumn>
-									))
-								}
+								<TableRowColumn style={rowColumnStyle}>
+									<input styleName="table-input" value={row.name} />
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<textarea styleName="table-textarea" value={row.description} />
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<input styleName="table-input" value={row.phone} />
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<DatePicker
+										container="inline"
+										mode="landscape"
+										value={new Date(row.callDate * 60 * 1000)}
+										className={styles.datePickerInput}
+										/>
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<TimezonePicker
+										value={timezones[zoneKeys[row.timezone]]}
+										className={styles.timezonePicker}
+										/>
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<Clock
+										config={{
+											town: timezones[zoneKeys[row.timezone]],
+											timezone: timezones[zoneKeys[row.timezone]],
+										}}
+										/>
+								</TableRowColumn>
+								<TableRowColumn style={rowColumnStyle}>
+									<Toggle label="Выкл" labelRight="Вкл" toggled={row.bool1} />
+								</TableRowColumn>
 							</TableRow>
-						)) : null
+						))
 					}
 				</TableBody>
 			</Table>

@@ -8,16 +8,17 @@ import type { Emitter } from 'kefir';
 /* eslint-enable no-duplicate-imports */
 import { Scrollbars } from 'react-custom-scrollbars';
 import { connect } from 'react-redux';
-import { init } from '../../actions/users'; 
+import { init, getUsers, setScrollPos } from '../../actions/users';
 import UserList from '../../components/UserList';
 import styles from './index.css';
 
 const mapStateToProps = state => ({
 	userCount: state.users.userCount,
-	scrollPos: state.users.scrollPos,
+	initScrollPos: state.users.initScrollPos,
+	firstDataID: state.users.firstDataID,
 });
 
-@connect(mapStateToProps, { init })
+@connect(mapStateToProps, { init, getUsers })
 @CSSModules(styles)
 export default class ScrollArea extends Component {
 	/* eslint-disable react/sort-comp */
@@ -31,7 +32,8 @@ export default class ScrollArea extends Component {
 		firstRenderedRowID: number;
 		verticalScrollPos: number;
 		thumbPosition: number;
-		forceScroll: boolean;
+		pendingScroll: boolean;
+		forceScroll: boolean | number;
 	};
 	scrollbar: ?Object;
 	ignoreScrollPos: number | false;
@@ -39,6 +41,7 @@ export default class ScrollArea extends Component {
 	scrollEmitter: ?Emitter<*, *>;
 	dragEmitter: ?Emitter<*, *>;
 	thumbPositionerEmitter: ?Emitter<*, *>;
+	scrollPositionSaverEmitter: ?Emitter<*, *>;
 	currentElementID: number;
 
 
@@ -51,14 +54,17 @@ export default class ScrollArea extends Component {
 				PropTypes.element,
 			])
 		),
-		rows: PropTypes.arrayOf(
+		rows: PropTypes.oneOfType([
 			PropTypes.arrayOf(
-				PropTypes.oneOfType([
-					PropTypes.string,
-					PropTypes.element,
-				])
-			)
-		),
+				PropTypes.arrayOf(
+					PropTypes.oneOfType([
+						PropTypes.string,
+						PropTypes.element,
+					])
+				)
+			),
+			PropTypes.object,
+		]),
 		marginTop: PropTypes.number,
 	};
 
@@ -66,14 +72,15 @@ export default class ScrollArea extends Component {
 		super(...args);
 		this.state = {
 			firstRenderedRowID: 0,
-			rowsPerPage: 10,
+			rowsPerPage: 0,
 			verticalScrollPos: 0,
 			forceScroll: false,
 			thumbPosition: 0,
+			pendingScroll: false,
 		};
 		this.viewportHeight = 0;
 		this.lastScrollPos = 0;
-		this.renderingPagesCount = 11; // Harry Potter and magic numbers
+		this.renderingPagesCount = 11; // Harry Potter and Magic Numbers
 		this.tableHeaderHeight = 61;
 		this.rowHeight = 100;
 		this.scrollbar = null;
@@ -83,8 +90,76 @@ export default class ScrollArea extends Component {
 		this.currentElementID = 0;
 		this.thumb = null;
 		this.thumbPositionerEmitter = null;
+		this.scrollPositionSaverEmitter = null;
 	}
 	/* eslint-enable react/sort-comp */
+
+	componentDidMount() {
+		this.getRowsPerPage();
+	}
+
+	componentWillReceiveProps(nextProps: Object) {
+		if (this.props.userCount !== nextProps.userCount) {
+			this.scrollToAbsPos(0);
+		}
+		if (this.props.initScrollPos !== nextProps.initScrollPos && nextProps.initScrollPos !== null) {
+			this.scrollToAbsPos(nextProps.initScrollPos);
+		}
+	}
+	
+	componentDidUpdate(prevProps: Object, prevState: Object): void {
+		if (prevState.rowsPerPage === 0 && this.state.rowsPerPage !== 0) {
+			this.props.init();
+			fromEvents(window, 'resize')
+			.debounce(300)
+			.onValue(() => {
+				if (this.getViewportHeight() !== this.viewportHeight) {
+					this.getRowsPerPage();
+				}
+			});
+
+			stream((emitter: Emitter<*, *>) => {
+				this.scrollEmitter = emitter;
+			})
+			.onValue(this.scroll);
+
+			stream((emitter: Emitter<*, *>) => {
+				this.dragEmitter = emitter;
+			})
+			.debounce(40)
+			.onValue(this.drag);
+
+			stream((emitter: Emitter<*, *>) => {
+				this.thumbPositionerEmitter = emitter;
+			})
+			.debounce(16)
+			.onValue(this.updateThumbPos);
+
+			stream((emitter: Emitter<*, *>) => {
+				this.scrollPositionSaverEmitter = emitter;
+			})
+			.debounce(100)
+			.onValue(({id, scrollTop}: { id: number; scrollTop: number; }) => {
+				if (this.props.initScrollPos !== null) {
+					const absPos = this.rowHeight * id + scrollTop;
+					setScrollPos(absPos);
+				}
+			});
+		} else if (prevState.rowsPerPage !== this.state.rowsPerPage
+			|| this.state.forceScroll !== false) {
+			this.forceScroll(this.state.forceScroll);
+		}
+		if (this.state.pendingScroll
+		&& prevState.firstRenderedRowID !== this.state.firstRenderedRowID) {
+			this.scrollDone();
+		}
+	}
+
+	scrollDone = () => {
+		this.setState({
+			pendingScroll: false,
+		});
+	}
 
 	getViewportHeight(): number {
 		let documentHeight = 0;
@@ -99,24 +174,15 @@ export default class ScrollArea extends Component {
 		const rowsPerPage = Math.ceil(this.viewportHeight / this.rowHeight);
 		let firstRenderedRowID = this.currentElementID - (rowsPerPage * 2);
 		firstRenderedRowID = Math.max(firstRenderedRowID, 0);
-		firstRenderedRowID = Math.min(firstRenderedRowID,
-		this.props.userCount - 1 - this.renderingPagesCount * rowsPerPage);
+		if (this.props.userCount) {
+			firstRenderedRowID = Math.min(firstRenderedRowID,
+			this.props.userCount - 1 - this.renderingPagesCount * rowsPerPage);
+		}
 		if (this.state.rowsPerPage !== rowsPerPage) {
 			this.setState({
 				rowsPerPage,
 				firstRenderedRowID,
 			});
-		}
-	}
-
-	componentWillMount() {
-		this.getRowsPerPage();
-	}
-
-	componentWillReceiveProps(nextProps) {
-		if (this.props.scrollPos !== nextProps.scrollPos) {
-			console.log('implement me!11 componentWillReceiveProps in ScrollArea.');
-			// this.scrollToAbsPos(nextProps.scrollPos);
 		}
 	}
 
@@ -137,11 +203,11 @@ export default class ScrollArea extends Component {
 	}
 
 	scroll = (v: UIEvent): void => {
-		const triggerPageNum = 2;
-		const triggerOffset = this.viewportHeight * triggerPageNum;
-		const absPageY = this.getScrollTop()
-			+ (this.state.firstRenderedRowID * this.rowHeight);
-		const pageHeight = this.viewportHeight;
+		const triggerPageNum = 2; // Harry Potter and Secret Number
+		const pageHeight = this.state.rowsPerPage * this.rowHeight;
+		const triggerOffset = pageHeight * triggerPageNum;
+		const absPageY = (this.getScrollTop()
+			+ (this.state.firstRenderedRowID * this.rowHeight));
 		const pageElemCount = this.state.rowsPerPage;
 
 		if (this.props.userCount <= this.state.rowsPerPage * this.renderingPagesCount) {
@@ -157,12 +223,12 @@ export default class ScrollArea extends Component {
 			return;
 		}
 
-		this.currentElementID = Math.floor((absPageY - this.tableHeaderHeight) / this.rowHeight);
+		this.currentElementID = Math.floor(absPageY / this.rowHeight);
 
 		if (absPageY < (this.tableHeaderHeight + triggerOffset)) {
 			if (this.state.firstRenderedRowID !== 0) {
-				const scrollTargetPos = this.getScrollTop()
-				- (pageElemCount * this.rowHeight * (triggerPageNum + 1));
+				const scrollTargetPos = (this.getScrollTop()
+					- (pageElemCount * this.rowHeight * (triggerPageNum + 1)));
 				this.ignoreScrollPos = scrollTargetPos;
 				if (this.scrollbar) {
 					this.scrollbar.scrollTop(scrollTargetPos);
@@ -175,11 +241,13 @@ export default class ScrollArea extends Component {
 			return;
 		}
 
-		if (absPageY > (this.tableHeaderHeight + ((this.props.userCount * this.rowHeight) - triggerOffset))) {
-			if (this.state.firstRenderedRowID
-			< (this.props.userCount - this.state.rowsPerPage * this.renderingPagesCount)) {
+		const totalRowsHeight = this.props.userCount * this.rowHeight;
+		if (absPageY > (this.tableHeaderHeight + (totalRowsHeight - triggerOffset))) {
+			const rowsPerRender = this.state.rowsPerPage * this.renderingPagesCount;
+			const firstRenderedRowID = this.props.userCount - rowsPerRender;
+			if (this.state.firstRenderedRowID !== firstRenderedRowID) {
 				this.setState({
-					firstRenderedRowID: this.props.userCount - this.state.rowsPerPage * this.renderingPagesCount,
+					firstRenderedRowID,
 				});
 			}
 			this.lastScrollPos = absPageY;
@@ -188,102 +256,78 @@ export default class ScrollArea extends Component {
 
 		const { top, bottom } = this.getPaddings();
 
+		const relPageY = this.getScrollTop();
+		if (relPageY > triggerOffset
+			&& relPageY < (
+				this.renderingPagesCount
+				* this.state.rowsPerPage
+				* this.rowHeight
+				- triggerOffset)
+			) {
+			return;
+		}
+
+		if (this.state.pendingScroll) {
+			return;
+		}
+
 		const scrollTriggered = (absPageY < (top + triggerOffset)
 			|| absPageY > (bottom - triggerOffset));
 		if (scrollTriggered) {
-			let firstRenderedRowID = 0;
+			let idOffset = this.state.rowsPerPage;
+			let nextScrollPos = this.getScrollTop();
 			const scrollUp = this.getScrollTop() < this.lastScrollPos;
+			const scrollOffset = (this.renderingPagesCount - triggerPageNum * 2) * pageHeight;
 			if (scrollUp) {
-				const absTablePos = absPageY - this.tableHeaderHeight - this.rowHeight * 2;
-				const scrollToPagesCount = this.renderingPagesCount + (triggerPageNum * 2);
-				const scrollToPagesHeight = pageHeight * scrollToPagesCount;
-				const scrollToTarget = absTablePos - scrollToPagesHeight;
-				firstRenderedRowID = Math.floor(scrollToTarget / this.rowHeight);
-				const scrollTargetPos = this.getScrollTop()
-				+ (pageElemCount * this.rowHeight * triggerPageNum);
-				this.ignoreScrollPos = scrollTargetPos;
-				if (this.scrollbar) {
-					this.scrollbar.scrollTop(scrollTargetPos);
-				}
-				this.setState({
-					firstRenderedRowID: Math.max(firstRenderedRowID, 0),
-				});
+				idOffset *= this.renderingPagesCount - triggerPageNum;
+				nextScrollPos += scrollOffset;
 			} else {
-				const absTablePos = absPageY - this.tableHeaderHeight - this.rowHeight * 2;
-				const scrollToPagesCount = this.renderingPagesCount - triggerPageNum * 2;
-				const scrollToPagesHeight = pageElemCount * this.rowHeight * scrollToPagesCount;
-				const scrollToTarget = absTablePos - scrollToPagesHeight;
-				firstRenderedRowID = Math.min(
-					Math.ceil(scrollToTarget / this.rowHeight),
-					this.props.userCount - this.state.rowsPerPage * this.renderingPagesCount
-				);
-				const scrollTargetPos = this.getScrollTop()
-				- (pageElemCount * this.rowHeight * triggerPageNum);
-				this.ignoreScrollPos = scrollTargetPos;
-				if (this.scrollbar) {
-					this.scrollbar.scrollTop(scrollTargetPos);
-				}
-				this.setState({
-					firstRenderedRowID: Math.max(firstRenderedRowID, 0),
-				});
+				idOffset *= triggerPageNum;
+				nextScrollPos -= scrollOffset;
 			}
+			const firstRenderedRowID = Math.max(this.currentElementID - idOffset, 0);
+			if (firstRenderedRowID === this.state.firstRenderedRowID) {
+				return;
+			}
+			if (this.scrollbar) {
+				this.scrollbar.scrollTop(nextScrollPos);
+			}
+			this.setState({
+				pendingScroll: true,
+				firstRenderedRowID,
+			});
 		}
 		this.lastScrollPos = this.getScrollTop();
 	}
 
-	forceScroll = (): void => {
+	forceScroll = (offset: boolean | number): void => {
 		if (this.scrollbar) {
 			const s = this.scrollbar;
+			let scrollOffset;
 			const twoPages = this.state.rowsPerPage * 2;
-			let scrollOffset = twoPages * this.rowHeight;
-			scrollOffset = Math.max(scrollOffset, 0);
-			scrollOffset = Math.min(scrollOffset,
-			this.state.rowsPerPage * (this.renderingPagesCount - 1) * this.rowHeight);
-			if (this.state.firstRenderedRowID < twoPages
-			|| this.state.firstRenderedRowID > this.props.userCount - twoPages) {
-				scrollOffset = this.state.firstRenderedRowID * this.rowHeight;
+			if (typeof offset === 'number') {
+				scrollOffset = offset;
+				scrollOffset = Math.max(scrollOffset, 0);
+			} else {
+				scrollOffset = twoPages * this.rowHeight;
+				scrollOffset = Math.max(scrollOffset, 0);
+				scrollOffset = Math.min(scrollOffset,
+				this.state.rowsPerPage * (this.renderingPagesCount - 1) * this.rowHeight);
 			}
+			if (typeof offset !== 'number') {
+				if (this.state.firstRenderedRowID < twoPages
+				|| this.state.firstRenderedRowID > this.props.userCount - twoPages) {
+					scrollOffset = this.state.firstRenderedRowID * this.rowHeight;
+				}
+			}
+
 			s.scrollTop(scrollOffset);
-			if (this.state.forceScroll) {
+			if (this.state.forceScroll !== false) {
 				this.setState({
 					forceScroll: false,
 				});
 			}
 		}
-	}
-
-	componentDidUpdate(prevProps: Object, prevState: Object): void {
-		if (prevState.rowsPerPage !== this.state.rowsPerPage || this.state.forceScroll) {
-			this.forceScroll();
-		}
-	}
-
-	componentDidMount() {
-		this.props.init();
-		fromEvents(window, 'resize')
-		.debounce(300)
-		.onValue(() => {
-			if (this.getViewportHeight() !== this.viewportHeight) {
-				this.getRowsPerPage();
-			}
-		});
-
-		stream((emitter: Emitter<*, *>) => {
-			this.scrollEmitter = emitter;
-		})
-		.onValue(this.scroll);
-
-		stream((emitter: Emitter<*, *>) => {
-			this.dragEmitter = emitter;
-		})
-		.debounce(40)
-		.onValue(this.drag);
-
-		stream((emitter: Emitter<*, *>) => {
-			this.thumbPositionerEmitter = emitter;
-		})
-		.debounce(16)
-		.onValue(this.updateThumbPos);
 	}
 
 	handleScroll = (v: UIEvent) => {
@@ -306,13 +350,76 @@ export default class ScrollArea extends Component {
 	)
 
 	scrollToAbsPos = (absPos: number) => {
-		// const requestedrowID = Math.floor(absPos / );
-		// console.log('');
+		if (this.scrollbar && absPos === 0
+			|| isNaN(absPos)
+			|| absPos === Infinity
+			|| absPos === -Infinity
+		) {
+			this.setState({
+				firstRenderedRowID: 0,
+				forceScroll: 0,
+			});
+			return;
+		}
+		if (absPos <= this.state.rowsPerPage * this.rowHeight * 3) {
+			this.setState({
+				firstRenderedRowID: 0,
+				forceScroll: absPos,
+			});
+			return;
+		}
+		const pages = (
+			this.props.userCount
+			- this.state.rowsPerPage
+			* (this.renderingPagesCount - 3)
+		);
+		if (absPos >= pages * this.rowHeight) {
+			const firstRenderedRowID = (
+				this.props.userCount
+				- this.state.rowsPerPage
+				* this.renderingPagesCount
+			);
+			this.setState({
+				firstRenderedRowID,
+				forceScroll: absPos - firstRenderedRowID * this.rowHeight,
+			});
+			return;
+		}
+		const absToPageHeight = absPos / this.rowHeight;
+		const realPageCount = absToPageHeight / this.state.rowsPerPage;
+		let pageCount = Math.floor(realPageCount);
+		if (realPageCount > 2) {
+			pageCount -= 2;
+		}
+		let relativeTarget = absPos - pageCount * this.rowHeight * this.state.rowsPerPage;
+		if (realPageCount >= Math.floor(this.props.userCount / this.state.rowsPerPage)) {
+			relativeTarget += this.rowHeight * this.state.rowsPerPage * 2;
+		}
+
+		let targetFirstRenderID = pageCount * this.state.rowsPerPage;
+		targetFirstRenderID = Math.max(targetFirstRenderID, 0);
+		const renderingRowsCount = this.state.rowsPerPage * this.renderingPagesCount;
+		const maxTargetFirstRenderID = this.props.userCount - renderingRowsCount;
+		if (targetFirstRenderID > maxTargetFirstRenderID) {
+			relativeTarget += this.rowHeight * this.state.rowsPerPage * (this.renderingPagesCount - 2);
+			targetFirstRenderID = maxTargetFirstRenderID;
+		}
+		this.setState({
+			firstRenderedRowID: targetFirstRenderID,
+			forceScroll: relativeTarget,
+		});
 	}
 
 	handleScrollUpdate = (v: {
-		thumbHeight: number; clientY: number; trackVerticalHeight: number;
+		thumbHeight: number; clientY: number; trackVerticalHeight: number; scrollTop: number;
 	}) => {
+		if (this.scrollPositionSaverEmitter) {
+			this.scrollPositionSaverEmitter
+			.emit({
+				id: this.state.firstRenderedRowID,
+				scrollTop: v.scrollTop,
+			});
+		}
 		if (v.thumbHeight !== null) {
 			if (this.props.userCount <= this.state.rowsPerPage * this.renderingPagesCount) {
 				return;
@@ -435,8 +542,10 @@ export default class ScrollArea extends Component {
 						rowHeight={rowHeight}
 						firstRowID={firstRowID}
 						rowsPerPage={rowsPerPage}
+						firstDataID={this.props.firstDataID}
 						rowsCount={this.props.userCount}
 						renderingPagesCount={this.renderingPagesCount}
+						getUsers={this.props.getUsers}
 						maxRows={this.props.userCount < this.state.rowsPerPage ? this.props.userCount : null}
 						/>
 				</div>

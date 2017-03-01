@@ -31,6 +31,62 @@
 	width: 100%;
 }
 
+.table-input {
+	width: 100%;
+	background: none;
+	vertical-align: middle;
+	white-space: normal;
+	border: none;
+	height: 100%;
+	-webkit-appearance: none;
+	padding: 10px;
+}
+
+.table-input:focus {
+	outline:0;
+	background: #fff;
+	border: 2px solid $primary1Color;
+}
+
+.table-textarea {
+	padding: 10px;
+	width: 100%;
+	background: none;
+	vertical-align: middle;
+	white-space: normal;
+	border: none;
+	height: 100%;
+	-webkit-appearance: none;
+	max-height: 100%;
+	max-width: 100%;
+}
+
+.table-textarea:focus {
+	outline:0;
+	background: #fff;
+	border: 2px solid $primary1Color;
+}
+
+.datePickerInput {
+	&:first-child hr {
+		display: none;
+	}
+}
+
+.timezonePicker {
+	& ul {
+		position: absolute;
+		z-index: 10;
+		background: #fff;
+	}
+}
+
+:global(.clock) {
+	& li {
+		display: inline-block;
+	}
+}
+
 @media (max-width: 767px) {
 	.table-body {
 		overflow: visible;

@@ -1,11 +1,13 @@
 /* @flow */
+import { List } from 'immutable';
 import type { Action } from '../types/action';
 import { SET_USER_COUNT, SET_SCROLL_POS, SET_USERS_ROWS } from '../actions/users';
 
 const defaultState = {
 	userCount: 0,
-	scrollPos: 0,
-	users: null,
+	initScrollPos: null,
+	firstDataID: null,
+	data: null,
 };
 
 export default function general(state: Object = defaultState, action: Action) {
@@ -14,7 +16,7 @@ export default function general(state: Object = defaultState, action: Action) {
 		if (action.payload) {
 			return {
 				...state,
-				...{userCount: action.payload.count},
+				...{ userCount: action.payload.count },
 			};
 		}
 		return state;
@@ -23,16 +25,23 @@ export default function general(state: Object = defaultState, action: Action) {
 		if (action.payload) {
 			return {
 				...state,
-				...{scrollPos: action.payload.pos},
+				...{ initScrollPos: action.payload.pos },
 			};
 		}
 		return state;
 	}
 	case SET_USERS_ROWS: {
 		if (action.payload) {
+			let data = null;
+			if (action.payload.users) {
+				data = List(action.payload.users);
+			}
 			return {
 				...state,
-				...action.payload,
+				...{
+					data,
+					firstDataID: action.payload.firstDataID || 0,
+				},
 			};
 		}
 		return state;

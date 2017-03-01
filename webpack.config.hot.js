@@ -57,6 +57,9 @@ module.exports = {
 				test: /react-progress-button\.css$/,
 				loaders: ['style-loader', 'css-loader'],
 			}, {
+				test: /\.json$/,
+				loader: 'json-loader',
+			}, {
 				test: /\.png$/,
 				loader: 'file-loader?name=images/[hash].[ext]',
 			}, {

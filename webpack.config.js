@@ -57,6 +57,9 @@ module.exports = {
 				test: /react-progress-button\.css$/,
 				loader: ExtractTextPlugin.extract('style-loader', 'css-loader'),
 			}, {
+				test: /\.json$/,
+				loader: 'json-loader',
+			}, {
 				test: /\.png$/,
 				loader: 'file-loader?name=/static/images/[hash].[ext]',
 			}, {

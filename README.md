@@ -2,7 +2,8 @@
 
 ## Getting started
 
+Download release here...........
+
 ```
-yarn
-yarn start
+docker build -t testcrm . && docker run testcrm -d --rm .
 ```
