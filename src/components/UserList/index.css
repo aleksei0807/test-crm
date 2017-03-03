@@ -19,61 +19,22 @@
 
 .table-body.empty {
 	& td {
-		cursor: auto !important;
-	}
-	& td * {
-		display: none;
-	}
-}
-
-.empty {
-	border-bottom: 1px solid #e5e5e5;
-	width: 100%;
-}
-
-.table-input {
-	width: 100%;
-	background: none;
-	vertical-align: middle;
-	white-space: normal;
-	border: none;
-	height: 100%;
-	-webkit-appearance: none;
-	padding: 10px;
-}
-
-.table-input:focus {
-	outline:0;
-	background: #fff;
-	border: 2px solid $primary1Color;
-}
-
-.table-textarea {
-	padding: 10px;
-	width: 100%;
-	background: none;
-	vertical-align: middle;
-	white-space: normal;
-	border: none;
-	height: 100%;
-	-webkit-appearance: none;
-	max-height: 100%;
-	max-width: 100%;
-}
-
-.table-textarea:focus {
-	outline:0;
-	background: #fff;
-	border: 2px solid $primary1Color;
-}
-
-.datePickerInput {
-	&:first-child hr {
-		display: none;
+		transform: translateZ(0);
 	}
 }
 
 .timezonePicker {
+	width: 100%;
+	
+	& input {
+		border: none;
+		&:focus {
+			outline: 0;
+			background: #fff;
+			border: 2px solid $primary1Color;
+		}
+	}
+
 	& ul {
 		position: absolute;
 		z-index: 10;
@@ -81,22 +42,11 @@
 	}
 }
 
+.table-header {
+}
+
 :global(.clock) {
 	& li {
 		display: inline-block;
-	}
-}
-
-@media (max-width: 767px) {
-	.table-body {
-		overflow: visible;
-	}
-	.table,
-	.table-body,
-	.table-header {
-		display: block;
-		overflow: hidden !important;
-		padding: 0 !important;
-		min-width: 690px;
 	}
 }

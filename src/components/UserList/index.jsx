@@ -10,14 +10,22 @@ import {
 	TableRow,
 	TableRowColumn,
 } from 'material-ui/Table';
-import DatePicker from 'material-ui/DatePicker';
 import timezones from 'react-timezone/src/timezones.json';
 import TimezonePicker from 'react-timezone';
 import Clock from 'react-clockwall';
+import moment from 'moment-timezone';
+import Preloader from 'halogen/BeatLoader';
+import { primary1Color } from '../../styles/vars';
 import Toggle from '../Toggle';
+import DateTime from '../DateTime';
+import Input from '../Input';
+import Textarea from '../Textarea';
 import styles from './index.css';
 
 const zoneKeys = Object.keys(timezones);
+const zoneMap = zoneKeys.reduce(
+	(prev, current, idx) => ({ ...prev, ...{ [timezones[current]]: idx }}),
+{});
 
 const headerColumnStyle = {
 	fontSize: 11,
@@ -62,6 +70,8 @@ export default class UserList extends Component {
 		rowsPerPage: PropTypes.number,
 		renderingPagesCount: PropTypes.number,
 		getUsers: PropTypes.func,
+		changeUser: PropTypes.func,
+		pendingLoading: PropTypes.bool,
 	};
 
 	componentDidMount() {
@@ -81,20 +91,25 @@ export default class UserList extends Component {
 			rows,
 			getUsers,
 			rowsCount,
+			pendingLoading,
 		} = this.props;
 
-		const isBigEnough = rows && rows.size > rowsPerPage * renderingPagesCount;
-		if (!rows
+		const isBigEnough = rowsCount > rowsPerPage * renderingPagesCount;
+		if ((!rows
 		|| firstDataID === null
 		|| firstRowID !== firstDataID
 		|| (isBigEnough && rowsPerPage * renderingPagesCount !== rows.size)
-		|| (prevProps && prevProps.rowsCount !== rowsCount)) {
+		|| (prevProps && prevProps.rowsCount !== rowsCount)) && !pendingLoading) {
 			getUsers(firstRowID || 0, rowsPerPage * renderingPagesCount);
 		}
 	}
 
+	getTimezone(timeZoneID: number) {
+		return timezones[zoneKeys[timeZoneID]];
+	}
+
 	buildEmptyRows = (renderRowsCount: number, columnsCount: number) => {
-		const { rowHeight, selectable } = this.props;
+		const { rowHeight, selectable, stylesRowColumns } = this.props;
 
 		return Array.from({ length: renderRowsCount })
 			.map((_, key) => (
@@ -108,7 +123,16 @@ export default class UserList extends Component {
 					}}>
 					{
 						Array.from({ length: columnsCount })
-						.map((v, k) => <TableRowColumn key={k} style={rowColumnStyle} />)
+						.map((v, k) => (
+							<TableRowColumn
+								key={k}
+								style={stylesRowColumns ? {
+									...rowColumnStyle,
+									...(stylesRowColumns[k] || {}),
+								} : rowColumnStyle}>
+								{k === 0 ? <Preloader color={primary1Color} /> : null}
+							</TableRowColumn>
+						))
 					}
 				</TableRow>
 			)
@@ -119,6 +143,7 @@ export default class UserList extends Component {
 		const {
 			headerColumns,
 			stylesHeaderColumns,
+			stylesRowColumns,
 			marginTop,
 			rowHeight,
 			firstRowID,
@@ -127,6 +152,7 @@ export default class UserList extends Component {
 			renderingPagesCount,
 			maxRows,
 			rows,
+			changeUser,
 		} = this.props;
 
 		let renderRowsCount = rowsPerPage * renderingPagesCount;
@@ -154,12 +180,10 @@ export default class UserList extends Component {
 					height: '100%',
 					marginTop: marginTop || 25,
 					border: '1px solid #e5e5e5',
-					overflowX: 'auto',
-					overflowY: 'hidden',
 				}}
 				bodyStyle={{
-					overflowX: 'hidden',
-					overflowY: 'hidden',
+					overflowX: 'visible',
+					overflowY: 'visible',
 					minWidth: '690px',
 				}}>
 				<TableHeader styleName="table-header" displaySelectAll={false} adjustForCheckbox={false} >
@@ -193,39 +217,114 @@ export default class UserList extends Component {
 								style={{
 									height: rowHeight,
 								}}>
-								<TableRowColumn style={rowColumnStyle}>
-									<input styleName="table-input" value={row.name} />
-								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<textarea styleName="table-textarea" value={row.description} />
-								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<input styleName="table-input" value={row.phone} />
-								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<DatePicker
-										container="inline"
-										mode="landscape"
-										value={new Date(row.callDate * 60 * 1000)}
-										className={styles.datePickerInput}
-										/>
-								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<TimezonePicker
-										value={timezones[zoneKeys[row.timezone]]}
-										className={styles.timezonePicker}
-										/>
-								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<Clock
-										config={{
-											town: timezones[zoneKeys[row.timezone]],
-											timezone: timezones[zoneKeys[row.timezone]],
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[0] || {}),
+									} : rowColumnStyle}>
+									<Input
+										value={row.name}
+										onChange={(v) => {
+											changeUser(key, 'name', v);
 										}}
 										/>
 								</TableRowColumn>
-								<TableRowColumn style={rowColumnStyle}>
-									<Toggle label="Выкл" labelRight="Вкл" toggled={row.bool1} />
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[1] || {}),
+									} : rowColumnStyle}>
+									<Textarea
+										value={row.description}
+										onChange={(v) => {
+											changeUser(key, 'description', v);
+										}}
+										/>
+								</TableRowColumn>
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[2] || {}),
+									} : rowColumnStyle}>
+									<Input
+										value={row.phone}
+										onChange={(v) => {
+											changeUser(key, 'phone', v);
+										}}
+										/>
+								</TableRowColumn>
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[3] || {}),
+									} : rowColumnStyle}>
+									<div
+										style={{
+											paddingBottom: 10,
+										}}>
+										<div>В таймзоне клиента:</div>
+										<DateTime
+											timestamp={row.callDate}
+											timezone={this.getTimezone(row.timezone)}
+											key={`client-${key}`}
+											onChange={(v) => {
+												changeUser(key, 'callDate', v);
+											}}
+											/>
+									</div>
+									<div>
+										<div>В текущей таймзоне:</div>
+										<DateTime
+											timestamp={row.callDate}
+											timezone={moment.tz.guess()}
+											key={`current-${key}`}
+											onChange={(v) => {
+												changeUser(key, 'callDate', v);
+											}}
+											/>
+									</div>
+								</TableRowColumn>
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[4] || {}),
+									} : rowColumnStyle}>
+									<TimezonePicker
+										value={this.getTimezone(row.timezone)}
+										className={styles.timezonePicker}
+										onChange={(v) => {
+											changeUser(key, 'timezone', zoneMap[v]);
+										}}
+										/>
+								</TableRowColumn>
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[5] || {}),
+									} : rowColumnStyle}>
+									<Clock
+										config={{
+											town: this.getTimezone(row.timezone),
+											timezone: this.getTimezone(row.timezone),
+											showTown: true,
+											showTimezone: true,
+											showDate: true,
+										}}
+										/>
+								</TableRowColumn>
+								<TableRowColumn
+									style={stylesRowColumns ? {
+										...rowColumnStyle,
+										...(stylesRowColumns[6] || {}),
+									} : rowColumnStyle}>
+									<Toggle
+										label="Выкл"
+										labelRight="Вкл"
+										toggled={row.bool1}
+										onToggle={(v) => {
+											changeUser(key, 'bool1', v);
+										}}
+										/>
 								</TableRowColumn>
 							</TableRow>
 						))

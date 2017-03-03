@@ -8,7 +8,9 @@ import type { Emitter } from 'kefir';
 /* eslint-enable no-duplicate-imports */
 import { Scrollbars } from 'react-custom-scrollbars';
 import { connect } from 'react-redux';
-import { init, getUsers, setScrollPos } from '../../actions/users';
+import Preloader from 'halogen/BeatLoader';
+import { primary1Color } from '../../styles/vars';
+import { init, getUsers, setScrollPos, changeUser } from '../../actions/users';
 import UserList from '../../components/UserList';
 import styles from './index.css';
 
@@ -16,9 +18,10 @@ const mapStateToProps = state => ({
 	userCount: state.users.userCount,
 	initScrollPos: state.users.initScrollPos,
 	firstDataID: state.users.firstDataID,
+	pendingLoading: state.users.pendingLoading,
 });
 
-@connect(mapStateToProps, { init, getUsers })
+@connect(mapStateToProps, { init, getUsers, changeUser })
 @CSSModules(styles)
 export default class ScrollArea extends Component {
 	/* eslint-disable react/sort-comp */
@@ -211,6 +214,7 @@ export default class ScrollArea extends Component {
 		const pageElemCount = this.state.rowsPerPage;
 
 		if (this.props.userCount <= this.state.rowsPerPage * this.renderingPagesCount) {
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 
@@ -220,6 +224,7 @@ export default class ScrollArea extends Component {
 				|| (v.target instanceof HTMLDivElement && this.ignoreScrollPos === v.target.scrollTop)) {
 				this.ignoreScrollPos = false;
 			}
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 
@@ -264,10 +269,12 @@ export default class ScrollArea extends Component {
 				* this.rowHeight
 				- triggerOffset)
 			) {
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 
 		if (this.state.pendingScroll) {
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 
@@ -282,11 +289,12 @@ export default class ScrollArea extends Component {
 				idOffset *= this.renderingPagesCount - triggerPageNum;
 				nextScrollPos += scrollOffset;
 			} else {
-				idOffset *= triggerPageNum;
 				nextScrollPos -= scrollOffset;
+				idOffset *= triggerPageNum;
 			}
 			const firstRenderedRowID = Math.max(this.currentElementID - idOffset, 0);
 			if (firstRenderedRowID === this.state.firstRenderedRowID) {
+				this.lastScrollPos = this.getScrollTop();
 				return;
 			}
 			if (this.scrollbar) {
@@ -315,8 +323,8 @@ export default class ScrollArea extends Component {
 				this.state.rowsPerPage * (this.renderingPagesCount - 1) * this.rowHeight);
 			}
 			if (typeof offset !== 'number') {
-				if (this.state.firstRenderedRowID < twoPages
-				|| this.state.firstRenderedRowID > this.props.userCount - twoPages) {
+				if (this.state.firstRenderedRowID <= twoPages
+				|| this.state.firstRenderedRowID >= this.props.userCount - twoPages) {
 					scrollOffset = this.state.firstRenderedRowID * this.rowHeight;
 				}
 			}
@@ -327,6 +335,7 @@ export default class ScrollArea extends Component {
 					forceScroll: false,
 				});
 			}
+			this.lastScrollPos = this.getScrollTop();
 		}
 	}
 
@@ -359,6 +368,7 @@ export default class ScrollArea extends Component {
 				firstRenderedRowID: 0,
 				forceScroll: 0,
 			});
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 		if (absPos <= this.state.rowsPerPage * this.rowHeight * 3) {
@@ -366,6 +376,7 @@ export default class ScrollArea extends Component {
 				firstRenderedRowID: 0,
 				forceScroll: absPos,
 			});
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 		const pages = (
@@ -383,6 +394,7 @@ export default class ScrollArea extends Component {
 				firstRenderedRowID,
 				forceScroll: absPos - firstRenderedRowID * this.rowHeight,
 			});
+			this.lastScrollPos = this.getScrollTop();
 			return;
 		}
 		const absToPageHeight = absPos / this.rowHeight;
@@ -404,10 +416,13 @@ export default class ScrollArea extends Component {
 			relativeTarget += this.rowHeight * this.state.rowsPerPage * (this.renderingPagesCount - 2);
 			targetFirstRenderID = maxTargetFirstRenderID;
 		}
+		targetFirstRenderID -= this.state.rowsPerPage;
+		relativeTarget += this.state.rowsPerPage * this.rowHeight;
 		this.setState({
 			firstRenderedRowID: targetFirstRenderID,
 			forceScroll: relativeTarget,
 		});
+		this.lastScrollPos = this.getScrollTop();
 	}
 
 	handleScrollUpdate = (v: {
@@ -513,6 +528,9 @@ export default class ScrollArea extends Component {
 			selectable,
 			marginTop,
 			rows,
+			pendingLoading,
+			initScrollPos,
+			userCount,
 		} = this.props;
 
 		const rowHeight = this.rowHeight || 100;
@@ -530,25 +548,45 @@ export default class ScrollArea extends Component {
 				disableAutoScrollOnTrack
 				scrollTopMod={this.scrollTopMod}
 				handleDrag={this.handleDrag}
-				style={{ height: `calc(100% - ${this.tableHeaderHeight}px)` }}>
-				<div>
-					<UserList
-						headerColumns={headerColumns}
-						stylesHeaderColumns={stylesHeaderColumns}
-						stylesRowColumns={stylesRowColumns}
-						selectable={selectable}
-						marginTop={marginTop}
-						rows={rows}
-						rowHeight={rowHeight}
-						firstRowID={firstRowID}
-						rowsPerPage={rowsPerPage}
-						firstDataID={this.props.firstDataID}
-						rowsCount={this.props.userCount}
-						renderingPagesCount={this.renderingPagesCount}
-						getUsers={this.props.getUsers}
-						maxRows={this.props.userCount < this.state.rowsPerPage ? this.props.userCount : null}
-						/>
-				</div>
+				style={{
+					height: `calc(100% - ${this.tableHeaderHeight}px)`,
+				}}>
+				{initScrollPos === null ? (
+					<div
+						style={{
+							width: '100%',
+							height: '100%',
+							display: 'flex',
+							justifyContent: 'center',
+							alignItems: 'center',
+						}}>
+						<Preloader color={primary1Color} />
+					</div>
+				) : (
+					<div>
+						{userCount === 0 ? null : (
+							<UserList
+								headerColumns={headerColumns}
+								stylesHeaderColumns={stylesHeaderColumns}
+								stylesRowColumns={stylesRowColumns}
+								selectable={selectable}
+								marginTop={marginTop}
+								rows={rows}
+								rowHeight={rowHeight}
+								firstRowID={firstRowID}
+								rowsPerPage={rowsPerPage}
+								firstDataID={this.props.firstDataID}
+								rowsCount={this.props.userCount}
+								renderingPagesCount={this.renderingPagesCount}
+								getUsers={this.props.getUsers}
+								maxRows={this.props.userCount < this.state.rowsPerPage
+									? this.props.userCount : null}
+								changeUser={this.props.changeUser}
+								pendingLoading={pendingLoading}
+								/>
+						)}
+					</div>
+				)}
 			</Scrollbars>
 		);
 	}

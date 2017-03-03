@@ -2,6 +2,7 @@
 	margin: 10px;
 	width: initial;
 	text-transform: uppercase;
+	vertical-align: middle;
 }
 
 :global .pb-container .pb-button {

@@ -11,6 +11,4 @@ WORKDIR /go/src/app
 
 RUN ls -alF /go/src/app; ls -alF /go/src/app/dist
 
-EXPOSE 80
-
 CMD ["app", "--host", "0.0.0.0", "--port", "80"]

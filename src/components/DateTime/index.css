@@ -1,0 +1,14 @@
+.datePickerInput {
+	display: inline-block;
+	width: 60%;
+
+	& hr {
+		display: none;
+	}
+}
+
+.timePickerInput {
+	& hr {
+		display: none;
+	}
+}

@@ -1,0 +1,15 @@
+.input {
+	width: 100%;
+	background: none;
+	vertical-align: middle;
+	white-space: normal;
+	border: none;
+	height: 100%;
+	-webkit-appearance: none;
+	padding: 10px;
+	&:focus {
+		outline: 0;
+		background: #fff;
+		border: 2px solid $primary1Color;
+	}
+}

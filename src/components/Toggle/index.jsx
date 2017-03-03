@@ -16,6 +16,16 @@ export default class MyToggle extends Component {
 		labelRight: PropTypes.string,
 	};
 
+	onClick(onToggle: Function) {
+		return (v) => {
+			if (v.target instanceof HTMLInputElement) {
+				onToggle(v.target.checked);
+			} else {
+				onToggle(v.target.dataset.checked === 'true' && true);
+			}
+		};
+	}
+
 	render() {
 		const { labelRight } = this.props;
 		const toggleProps = Object.assign({}, this.props);
@@ -26,6 +36,7 @@ export default class MyToggle extends Component {
 			<div style={{ textAlign: 'center' }}>
 				<Toggle
 					{...toggleProps}
+					onToggle={this.onClick(toggleProps.onToggle)}
 					style={{
 						...toggleProps.style,
 						...{
@@ -78,7 +89,7 @@ export default class MyToggle extends Component {
 					}}
 					/>
 				<span
-					onClick={toggleProps.onToggle}
+					onClick={this.onClick(toggleProps.onToggle)}
 					data-id={toggleProps['data-id'] || null}
 					data-key={toggleProps['data-key'] || null}
 					data-checked={toggleProps.toggled !== undefined ? !toggleProps.toggled : false}
